@@ -3,7 +3,9 @@ import { Search, ChevronDown, Award, Briefcase, GitPullRequest, FolderGit2, Trop
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../../../shared/contexts/ThemeContext';
 import { useAuth } from '../../../shared/contexts/AuthContext';
-import { getUserProfile } from '../../../shared/api/client';
+import { getUserProfile, getMyProjects } from '../../../shared/api/client';
+import { SkeletonLoader } from '../../../shared/components/SkeletonLoader';
+import { LanguageIcon } from '../../../shared/components/LanguageIcon';
 
 interface ProfileData {
   contributions_count: number;
@@ -20,11 +22,24 @@ interface ProfileData {
   };
 }
 
+interface Project {
+  id: string;
+  github_full_name: string;
+  status: string;
+  ecosystem_name?: string;
+  language?: string;
+  stars_count?: number;
+  forks_count?: number;
+  contributors_count?: number;
+}
+
 export function ProfilePage() {
   const { theme } = useTheme();
   const { user, userRole } = useAuth();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedMonths, setExpandedMonths] = useState<{ [key: string]: boolean }>({
@@ -64,6 +79,36 @@ export function ProfilePage() {
     fetchProfile();
   }, []);
 
+  // Fetch user's projects
+  useEffect(() => {
+    const fetchProjects = async () => {
+      setIsLoadingProjects(true);
+      try {
+        const data = await getMyProjects();
+        // Filter only verified projects and limit to 3
+        const verifiedProjects = data
+          .filter((p: any) => p.status === 'verified')
+          .slice(0, 3)
+          .map((p: any) => ({
+            id: p.id,
+            github_full_name: p.github_full_name,
+            status: p.status,
+            ecosystem_name: p.ecosystem_name,
+            language: p.language,
+            stars_count: 0, // Will be fetched from GitHub if needed
+            forks_count: 0,
+            contributors_count: 0,
+          }));
+        setProjects(verifiedProjects);
+        setIsLoadingProjects(false);
+      } catch (error) {
+        console.error('Failed to fetch projects:', error);
+        // Keep loading state true to show skeleton forever when backend is down
+      }
+    };
+    fetchProjects();
+  }, []);
+
   const toggleMonth = (month: string) => {
     setExpandedMonths(prev => ({
       ...prev,
@@ -94,35 +139,33 @@ export function ProfilePage() {
     }
   };
 
-  const projects = [
-    {
-      id: 1,
-      name: 'React Ecosystem',
-      logo: '⚛️',
-      rank: 5,
-      leads: 2,
-      contributions: 15,
-      rewards: 3600,
-    },
-    {
-      id: 2,
-      name: 'NestJS Framework',
-      logo: '▲',
-      rank: 8,
-      leads: 1,
-      contributions: 8,
-      rewards: 2640,
-    },
-    {
-      id: 3,
-      name: 'Vue.js',
-      logo: 'V',
-      rank: 3,
-      leads: 3,
-      contributions: 12,
-      rewards: 1800,
-    },
-  ];
+  // Calculate activity level (1-3) based on contribution count
+  const getActivityLevel = (count: number, maxCount: number): number => {
+    if (maxCount === 0) return 0;
+    if (count >= maxCount * 0.67) return 3;
+    if (count >= maxCount * 0.33) return 2;
+    return 1;
+  };
+
+  // Get real languages data from profileData
+  const activeLanguages = profileData?.languages?.slice(0, 3).map((lang) => {
+    const maxCount = Math.max(...(profileData.languages?.map(l => l.contribution_count) || [0]));
+    return {
+      name: lang.language,
+      contribution_count: lang.contribution_count,
+      activityLevel: getActivityLevel(lang.contribution_count, maxCount),
+    };
+  }) || [];
+
+  // Get real ecosystems data from profileData
+  const activeEcosystems = profileData?.ecosystems?.slice(0, 2).map((eco) => {
+    const maxCount = Math.max(...(profileData.ecosystems?.map(e => e.contribution_count) || [0]));
+    return {
+      name: eco.ecosystem_name,
+      contribution_count: eco.contribution_count,
+      activityLevel: getActivityLevel(eco.contribution_count, maxCount),
+    };
+  }) || [];
 
   const contributionsByMonth: { [key: string]: any[] } = {
     'December 2025': [
@@ -209,18 +252,6 @@ export function ProfilePage() {
     ],
   };
 
-  // Most active languages data
-  const activeLanguages = [
-    { name: 'Rust', icon: '🦀', activityLevel: 1 }, // 1 dot
-    { name: 'Cairo', icon: '🔺', activityLevel: 2 }, // 2 dots
-    { name: 'Noir', icon: '◆', activityLevel: 3 }, // 3 dots
-  ];
-
-  // Most active ecosystems data
-  const activeEcosystems = [
-    { name: 'Ethereum', icon: '◆', activityLevel: 1 },
-    { name: 'Avail', icon: '🔷', activityLevel: 1 },
-  ];
 
   // Rewards data for donut chart
   const rewardsData = [
@@ -255,52 +286,68 @@ export function ProfilePage() {
           <div className="flex items-start gap-7">
             {/* Avatar with Enhanced Effects */}
             <div className="relative group/avatar">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#c9983a]/40 to-[#d4af37]/25 rounded-full blur-2xl group-hover/avatar:blur-3xl transition-all duration-700 animate-pulse" />
-              <div className="absolute inset-0 bg-gradient-to-br from-[#ffd700]/20 to-[#c9983a]/10 rounded-full blur-xl" />
-              {user?.github.avatar_url ? (
-                <img 
-                  src={user.github.avatar_url} 
-                  alt={user.github.login}
-                  className="relative w-32 h-32 rounded-full border-[6px] border-white/40 shadow-[0_12px_40px_rgba(0,0,0,0.25),inset_0_2px_8px_rgba(255,255,255,0.3)] flex-shrink-0 group-hover/avatar:scale-105 transition-transform duration-500 object-cover"
-                />
+              {isLoadingProfile ? (
+                <>
+                  <SkeletonLoader variant="circle" width="128px" height="128px" className="border-[6px] border-white/40" />
+                  <SkeletonLoader variant="circle" width="48px" height="48px" className="absolute -bottom-3 -right-3" />
+                </>
               ) : (
-                <div className="relative w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-purple-600 border-[6px] border-white/40 shadow-[0_12px_40px_rgba(0,0,0,0.25),inset_0_2px_8px_rgba(255,255,255,0.3)] flex-shrink-0 group-hover/avatar:scale-105 transition-transform duration-500" />
+                <>
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#c9983a]/40 to-[#d4af37]/25 rounded-full blur-2xl group-hover/avatar:blur-3xl transition-all duration-700 animate-pulse" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#ffd700]/20 to-[#c9983a]/10 rounded-full blur-xl" />
+                  {user?.github.avatar_url ? (
+                    <img 
+                      src={user.github.avatar_url} 
+                      alt={user.github.login}
+                      className="relative w-32 h-32 rounded-full border-[6px] border-white/40 shadow-[0_12px_40px_rgba(0,0,0,0.25),inset_0_2px_8px_rgba(255,255,255,0.3)] flex-shrink-0 group-hover/avatar:scale-105 transition-transform duration-500 object-cover"
+                    />
+                  ) : (
+                    <div className="relative w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-purple-600 border-[6px] border-white/40 shadow-[0_12px_40px_rgba(0,0,0,0.25),inset_0_2px_8px_rgba(255,255,255,0.3)] flex-shrink-0 group-hover/avatar:scale-105 transition-transform duration-500" />
+                  )}
+                  <div className="absolute -bottom-3 -right-3 w-12 h-12 rounded-full backdrop-blur-[25px] bg-gradient-to-br from-[#ffd700] via-[#c9983a] to-[#b8873a] border-[4px] border-white/50 shadow-[0_6px_20px_rgba(201,152,58,0.5),0_0_20px_rgba(255,215,0,0.3)] flex items-center justify-center group-hover/avatar:rotate-12 transition-transform duration-500">
+                    <Award className="w-6 h-6 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
+                  </div>
+                </>
               )}
-              <div className="absolute -bottom-3 -right-3 w-12 h-12 rounded-full backdrop-blur-[25px] bg-gradient-to-br from-[#ffd700] via-[#c9983a] to-[#b8873a] border-[4px] border-white/50 shadow-[0_6px_20px_rgba(201,152,58,0.5),0_0_20px_rgba(255,215,0,0.3)] flex items-center justify-center group-hover/avatar:rotate-12 transition-transform duration-500">
-                <Award className="w-6 h-6 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
-              </div>
             </div>
             
             {/* User Details */}
             <div className="flex-1 pt-1">
               {/* Username with Glow */}
-              <h1 className={`text-[42px] font-black mb-3 tracking-tight transition-colors ${
-                theme === 'dark'
-                  ? 'text-[#f5f5f5]'
-                  : 'bg-gradient-to-r from-[#1a1410] via-[#2d2820] to-[#4a3f2f] bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.1)]'
-              }`}>
-                {user?.github.login || 'Loading...'}
-              </h1>
+              {isLoadingProfile ? (
+                <SkeletonLoader variant="text" width="200px" height="42px" className="mb-3" />
+              ) : (
+                <h1 className={`text-[42px] font-black mb-3 tracking-tight transition-colors ${
+                  theme === 'dark'
+                    ? 'text-[#f5f5f5]'
+                    : 'bg-gradient-to-r from-[#1a1410] via-[#2d2820] to-[#4a3f2f] bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.1)]'
+                }`}>
+                  {user?.github.login || 'Loading...'}
+                </h1>
+              )}
               
               {/* Role and Rank Badges */}
               <div className="flex items-center gap-3 mb-7 flex-wrap">
-                {/* Role Badge - Ultra Premium Design */}
-                <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-[14px] backdrop-blur-[30px] bg-gradient-to-r from-[#c9983a]/30 via-[#d4af37]/25 to-[#c9983a]/20 border-[2.5px] border-[#c9983a]/50 shadow-[0_10px_30px_rgba(201,152,58,0.3),inset_0_1px_3px_rgba(255,255,255,0.4),0_0_40px_rgba(201,152,58,0.15)] hover:shadow-[0_15px_40px_rgba(201,152,58,0.4),inset_0_1px_3px_rgba(255,255,255,0.5)] hover:scale-105 transition-all duration-300 group/badge">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#ffd700] via-[#f4c430] to-[#c9983a] flex items-center justify-center shadow-[0_3px_12px_rgba(201,152,58,0.5),inset_0_1px_2px_rgba(255,255,255,0.5)]">
-                    <Award className="w-4 h-4 text-white drop-shadow-md" />
+                {isLoadingProfile ? (
+                  <SkeletonLoader variant="default" width="200px" height="40px" className="rounded-[14px]" />
+                ) : (
+                  /* Role Badge - Ultra Premium Design */
+                  <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-[14px] backdrop-blur-[30px] bg-gradient-to-r from-[#c9983a]/30 via-[#d4af37]/25 to-[#c9983a]/20 border-[2.5px] border-[#c9983a]/50 shadow-[0_10px_30px_rgba(201,152,58,0.3),inset_0_1px_3px_rgba(255,255,255,0.4),0_0_40px_rgba(201,152,58,0.15)] hover:shadow-[0_15px_40px_rgba(201,152,58,0.4),inset_0_1px_3px_rgba(255,255,255,0.5)] hover:scale-105 transition-all duration-300 group/badge">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#ffd700] via-[#f4c430] to-[#c9983a] flex items-center justify-center shadow-[0_3px_12px_rgba(201,152,58,0.5),inset_0_1px_2px_rgba(255,255,255,0.5)]">
+                      <Award className="w-4 h-4 text-white drop-shadow-md" />
+                    </div>
+                    <span className={`text-[16px] font-black tracking-wide capitalize transition-colors ${
+                      theme === 'dark'
+                        ? 'text-[#f5c563]'
+                        : 'bg-gradient-to-r from-[#2d2820] via-[#c9983a] to-[#2d2820] bg-clip-text text-transparent'
+                    }`}>
+                      {profileData?.rank?.tier_name 
+                        ? `${profileData.rank.tier_name}${profileData.rank.position ? ` #${profileData.rank.position}` : ''}`
+                        : (userRole || 'contributor')}
+                    </span>
+                    <Sparkles className="w-5 h-5 text-[#c9983a] animate-pulse drop-shadow-[0_0_8px_rgba(201,152,58,0.6)]" />
                   </div>
-                  <span className={`text-[16px] font-black tracking-wide capitalize transition-colors ${
-                    theme === 'dark'
-                      ? 'text-[#f5c563]'
-                      : 'bg-gradient-to-r from-[#2d2820] via-[#c9983a] to-[#2d2820] bg-clip-text text-transparent'
-                  }`}>
-                    {profileData?.rank?.tier_name 
-                      ? `${profileData.rank.tier_name}${profileData.rank.position ? ` #${profileData.rank.position}` : ''}`
-                      : (userRole || 'contributor')}
-                  </span>
-                  <Sparkles className="w-5 h-5 text-[#c9983a] animate-pulse drop-shadow-[0_0_8px_rgba(201,152,58,0.6)]" />
-                </div>
-
+                )}
               </div>
 
               {/* Stats Grid - Inline Premium Style */}
@@ -312,14 +359,23 @@ export function ProfilePage() {
                       <GitPullRequest className="w-6 h-6 text-[#c9983a] drop-shadow-sm" />
                     </div>
                     <div>
-                      <div className={`text-[28px] font-black leading-none mb-1 drop-shadow-sm transition-colors ${
-                        theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                      }`}>
-                        {isLoadingProfile ? '...' : (profileData?.contributions_count || 0)}
-                      </div>
-                      <div className={`text-[12px] font-bold uppercase tracking-wider transition-colors ${
-                        theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                      }`}>Contributions</div>
+                      {isLoadingProfile ? (
+                        <>
+                          <SkeletonLoader variant="text" width="60px" height="28px" className="mb-1" />
+                          <SkeletonLoader variant="text" width="100px" height="12px" />
+                        </>
+                      ) : (
+                        <>
+                          <div className={`text-[28px] font-black leading-none mb-1 drop-shadow-sm transition-colors ${
+                            theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+                          }`}>
+                            {profileData?.contributions_count || 0}
+                          </div>
+                          <div className={`text-[12px] font-bold uppercase tracking-wider transition-colors ${
+                            theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+                          }`}>Contributions</div>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -328,12 +384,21 @@ export function ProfilePage() {
                       <Trophy className="w-6 h-6 text-[#c9983a] drop-shadow-sm" />
                     </div>
                     <div>
-                      <div className={`text-[28px] font-black leading-none mb-1 drop-shadow-sm transition-colors ${
-                        theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                      }`}>{isLoadingProfile ? '...' : (profileData?.rewards_count || 0)}</div>
-                      <div className={`text-[12px] font-bold uppercase tracking-wider transition-colors ${
-                        theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                      }`}>Rewards</div>
+                      {isLoadingProfile ? (
+                        <>
+                          <SkeletonLoader variant="text" width="40px" height="28px" className="mb-1" />
+                          <SkeletonLoader variant="text" width="80px" height="12px" />
+                        </>
+                      ) : (
+                        <>
+                          <div className={`text-[28px] font-black leading-none mb-1 drop-shadow-sm transition-colors ${
+                            theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+                          }`}>{profileData?.rewards_count || 0}</div>
+                          <div className={`text-[12px] font-bold uppercase tracking-wider transition-colors ${
+                            theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+                          }`}>Rewards</div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -344,13 +409,17 @@ export function ProfilePage() {
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#c9983a]/30 to-[#d4af37]/20 border-2 border-[#c9983a]/50 flex items-center justify-center shadow-[0_3px_12px_rgba(201,152,58,0.25),inset_0_1px_2px_rgba(255,255,255,0.2)] group-hover/stat:scale-110 group-hover/stat:shadow-[0_5px_20px_rgba(201,152,58,0.4)] transition-all duration-300">
                       <Users className="w-5 h-5 text-[#c9983a] drop-shadow-sm" />
                     </div>
-                    <span className={`text-[15px] font-medium transition-colors ${
-                      theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                    }`}>
-                      Contributor on <span className={`font-black text-[16px] transition-colors ${
-                        theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                      }`}>{isLoadingProfile ? '...' : (profileData?.projects_contributed_to_count || 0)}</span> projects
-                    </span>
+                    {isLoadingProfile ? (
+                      <SkeletonLoader variant="text" width="180px" height="15px" />
+                    ) : (
+                      <span className={`text-[15px] font-medium transition-colors ${
+                        theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+                      }`}>
+                        Contributor on <span className={`font-black text-[16px] transition-colors ${
+                          theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+                        }`}>{profileData?.projects_contributed_to_count || 0}</span> projects
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -359,13 +428,17 @@ export function ProfilePage() {
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#c9983a]/30 to-[#d4af37]/20 border-2 border-[#c9983a]/50 flex items-center justify-center shadow-[0_3px_12px_rgba(201,152,58,0.25),inset_0_1px_2px_rgba(255,255,255,0.2)] group-hover/stat:scale-110 transition-all duration-300">
                       <Star className="w-5 h-5 text-[#c9983a] fill-[#c9983a] drop-shadow-sm" />
                     </div>
-                    <span className={`text-[15px] font-medium transition-colors ${
-                      theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                    }`}>
-                      Lead <span className={`font-black text-[16px] transition-colors ${
-                        theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                      }`}>{isLoadingProfile ? '...' : (profileData?.projects_led_count || 0)}</span> projects
-                    </span>
+                    {isLoadingProfile ? (
+                      <SkeletonLoader variant="text" width="150px" height="15px" />
+                    ) : (
+                      <span className={`text-[15px] font-medium transition-colors ${
+                        theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+                      }`}>
+                        Lead <span className={`font-black text-[16px] transition-colors ${
+                          theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+                        }`}>{profileData?.projects_led_count || 0}</span> projects
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -388,7 +461,7 @@ export function ProfilePage() {
               {/* Rank Number */}
               <div className="relative mb-3">
                 {isLoadingProfile ? (
-                  <div className="text-[64px] font-black text-gray-400">...</div>
+                  <SkeletonLoader variant="text" width="120px" height="64px" className="mx-auto" />
                 ) : profileData?.rank?.position ? (
                   <div className="text-[64px] font-black bg-gradient-to-b from-[#1a1410] via-[#2d2820] to-[#c9983a] bg-clip-text text-transparent leading-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.2)]" style={{ letterSpacing: '-0.02em' }}>
                     {profileData.rank.position}
@@ -406,15 +479,21 @@ export function ProfilePage() {
               </div>
               
               {/* Divider */}
-              <div className="h-[3px] w-20 mx-auto bg-gradient-to-r from-transparent via-[#c9983a]/80 to-transparent mb-4 rounded-full shadow-[0_2px_8px_rgba(201,152,58,0.4)]" />
+              {!isLoadingProfile && (
+                <div className="h-[3px] w-20 mx-auto bg-gradient-to-r from-transparent via-[#c9983a]/80 to-transparent mb-4 rounded-full shadow-[0_2px_8px_rgba(201,152,58,0.4)]" />
+              )}
               
               {/* Badge Label */}
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-[10px] bg-white/[0.3] border-2 border-[#c9983a]/50 shadow-[0_3px_12px_rgba(201,152,58,0.3),inset_0_1px_2px_rgba(255,255,255,0.4)]">
-                {getRankIcon(profileData?.rank?.tier_name || 'Bronze')}
-                <span className="text-[13px] font-black text-[#c9983a] uppercase tracking-[0.15em]">
-                  {profileData?.rank?.tier_name || 'Bronze'}
-                </span>
-              </div>
+              {isLoadingProfile ? (
+                <SkeletonLoader variant="default" width="140px" height="36px" className="mx-auto rounded-[10px]" />
+              ) : (
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-[10px] bg-white/[0.3] border-2 border-[#c9983a]/50 shadow-[0_3px_12px_rgba(201,152,58,0.3),inset_0_1px_2px_rgba(255,255,255,0.4)]">
+                  {getRankIcon(profileData?.rank?.tier_name || 'Bronze')}
+                  <span className="text-[13px] font-black text-[#c9983a] uppercase tracking-[0.15em]">
+                    {profileData?.rank?.tier_name || 'Bronze'}
+                  </span>
+                </div>
+              )}
               
               {/* Shine Effect */}
               <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/15 to-transparent rounded-[28px] opacity-0 group-hover/rank:opacity-100 transition-opacity duration-700" />
@@ -441,87 +520,126 @@ export function ProfilePage() {
         </div>
 
         <div className="relative grid grid-cols-3 gap-5">
-          {projects.map((project, idx) => (
-            <div
-              key={project.id}
-              className={`backdrop-blur-[20px] rounded-[16px] border p-5 hover:scale-105 hover:shadow-[0_12px_36px_rgba(0,0,0,0.12)] transition-all duration-300 cursor-pointer group/project ${
-                theme === 'dark'
-                  ? 'bg-white/[0.08] border-white/10 hover:bg-white/[0.12] hover:border-white/15'
-                  : 'bg-white/[0.15] border-white/25 hover:bg-white/[0.2] hover:border-white/40'
-              }`}
-              style={{
-                animationDelay: `${idx * 100}ms`,
-              }}
-            >
-              {/* Project Header */}
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-[12px] bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md text-[22px] group-hover/project:scale-110 group-hover/project:rotate-6 transition-all duration-300">
-                  {project.logo}
+          {isLoadingProjects ? (
+            // Skeleton loaders for projects
+            Array.from({ length: 3 }).map((_, idx) => (
+              <div
+                key={idx}
+                className={`backdrop-blur-[20px] rounded-[16px] border p-5 ${
+                  theme === 'dark'
+                    ? 'bg-white/[0.08] border-white/10'
+                    : 'bg-white/[0.15] border-white/25'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <SkeletonLoader variant="default" width="48px" height="48px" className="rounded-[12px]" />
+                  <SkeletonLoader variant="text" width="60%" height="16px" />
                 </div>
-                <div className="flex-1">
-                  <h3 className={`text-[16px] font-bold group-hover/project:text-[#c9983a] transition-colors ${
-                    theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                  }`}>{project.name}</h3>
+                <div className="flex items-center gap-3 mb-4">
+                  <SkeletonLoader variant="text" width="40px" height="13px" />
+                  <SkeletonLoader variant="text" width="40px" height="13px" />
+                  <SkeletonLoader variant="text" width="40px" height="13px" />
                 </div>
-              </div>
-
-              {/* Project Metrics with Icons */}
-              <div className="flex items-center gap-3 mb-4 text-[13px]">
-                <div className={`flex items-center gap-1.5 group-hover/project:text-[#c9983a] transition-colors ${
-                  theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                }`}>
-                  <Star className="w-5 h-5" />
-                  <span>{project.rank.toLocaleString()}</span>
-                </div>
-                <div className={`flex items-center gap-1.5 group-hover/project:text-[#c9983a] transition-colors ${
-                  theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                }`}>
-                  <Users className="w-5 h-5" />
-                  <span>{project.leads.toLocaleString()}</span>
-                </div>
-                <div className={`flex items-center gap-1.5 group-hover/project:text-[#c9983a] transition-colors ${
-                  theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                }`}>
-                  <GitFork className="w-5 h-5" />
-                  <span>{project.contributions}</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <SkeletonLoader variant="default" width="100%" height="60px" className="rounded-[10px]" />
+                  <SkeletonLoader variant="default" width="100%" height="60px" className="rounded-[10px]" />
                 </div>
               </div>
-
-              {/* Bottom Stats - Rewards and Merged PRs */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className={`backdrop-blur-[15px] rounded-[10px] border p-3 group-hover/project:bg-white/[0.15] transition-all ${
-                  theme === 'dark' ? 'bg-white/[0.06] border-white/8' : 'bg-white/[0.1] border-white/20'
-                }`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-7 h-7 rounded-full bg-[#c9983a]/20 flex items-center justify-center group-hover/project:scale-110 transition-transform">
-                      <DollarSign className="w-4 h-4 text-[#c9983a]" />
+            ))
+          ) : projects.length > 0 ? (
+            projects.map((project, idx) => {
+              const projectName = project.github_full_name.split('/')[1] || project.github_full_name;
+              return (
+                <div
+                  key={project.id}
+                  className={`backdrop-blur-[20px] rounded-[16px] border p-5 hover:scale-105 hover:shadow-[0_12px_36px_rgba(0,0,0,0.12)] transition-all duration-300 cursor-pointer group/project ${
+                    theme === 'dark'
+                      ? 'bg-white/[0.08] border-white/10 hover:bg-white/[0.12] hover:border-white/15'
+                      : 'bg-white/[0.15] border-white/25 hover:bg-white/[0.2] hover:border-white/40'
+                  }`}
+                  style={{
+                    animationDelay: `${idx * 100}ms`,
+                  }}
+                >
+                  {/* Project Header */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-[12px] bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md text-[22px] group-hover/project:scale-110 group-hover/project:rotate-6 transition-all duration-300">
+                      {project.language ? (
+                        <LanguageIcon language={project.language} className="w-8 h-8" />
+                      ) : (
+                        <FolderGit2 className="w-6 h-6 text-white" />
+                      )}
                     </div>
-                    <span className={`text-[10px] font-medium transition-colors ${
-                      theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                    }`}>Rewards</span>
-                  </div>
-                  <div className={`text-[20px] font-bold transition-colors ${
-                    theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                  }`}>0</div>
-                </div>
-                <div className={`backdrop-blur-[15px] rounded-[10px] border p-3 group-hover/project:bg-white/[0.15] transition-all ${
-                  theme === 'dark' ? 'bg-white/[0.06] border-white/8' : 'bg-white/[0.1] border-white/20'
-                }`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-7 h-7 rounded-full bg-[#c9983a]/20 flex items-center justify-center group-hover/project:scale-110 transition-transform">
-                      <GitMerge className="w-4 h-4 text-[#c9983a]" />
+                    <div className="flex-1">
+                      <h3 className={`text-[16px] font-bold group-hover/project:text-[#c9983a] transition-colors ${
+                        theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+                      }`}>{projectName}</h3>
                     </div>
-                    <span className={`text-[10px] font-medium transition-colors ${
-                      theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
-                    }`}>Merged PRs</span>
                   </div>
-                  <div className={`text-[20px] font-bold transition-colors ${
-                    theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                  }`}>0</div>
+
+                  {/* Project Metrics with Icons */}
+                  <div className="flex items-center gap-3 mb-4 text-[13px]">
+                    <div className={`flex items-center gap-1.5 group-hover/project:text-[#c9983a] transition-colors ${
+                      theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+                    }`}>
+                      <Star className="w-5 h-5" />
+                      <span>{(project.stars_count || 0).toLocaleString()}</span>
+                    </div>
+                    <div className={`flex items-center gap-1.5 group-hover/project:text-[#c9983a] transition-colors ${
+                      theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+                    }`}>
+                      <Users className="w-5 h-5" />
+                      <span>{(project.contributors_count || 0).toLocaleString()}</span>
+                    </div>
+                    <div className={`flex items-center gap-1.5 group-hover/project:text-[#c9983a] transition-colors ${
+                      theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+                    }`}>
+                      <GitFork className="w-5 h-5" />
+                      <span>{(project.forks_count || 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  {/* Bottom Stats - Rewards and Merged PRs */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className={`backdrop-blur-[15px] rounded-[10px] border p-3 group-hover/project:bg-white/[0.15] transition-all ${
+                      theme === 'dark' ? 'bg-white/[0.06] border-white/8' : 'bg-white/[0.1] border-white/20'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-7 h-7 rounded-full bg-[#c9983a]/20 flex items-center justify-center group-hover/project:scale-110 transition-transform">
+                          <DollarSign className="w-4 h-4 text-[#c9983a]" />
+                        </div>
+                        <span className={`text-[10px] font-medium transition-colors ${
+                          theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+                        }`}>Rewards</span>
+                      </div>
+                      <div className={`text-[20px] font-bold transition-colors ${
+                        theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+                      }`}>0</div>
+                    </div>
+                    <div className={`backdrop-blur-[15px] rounded-[10px] border p-3 group-hover/project:bg-white/[0.15] transition-all ${
+                      theme === 'dark' ? 'bg-white/[0.06] border-white/8' : 'bg-white/[0.1] border-white/20'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-7 h-7 rounded-full bg-[#c9983a]/20 flex items-center justify-center group-hover/project:scale-110 transition-transform">
+                          <GitMerge className="w-4 h-4 text-[#c9983a]" />
+                        </div>
+                        <span className={`text-[10px] font-medium transition-colors ${
+                          theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'
+                        }`}>Merged PRs</span>
+                      </div>
+                      <div className={`text-[20px] font-bold transition-colors ${
+                        theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+                      }`}>0</div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              );
+            })
+          ) : (
+            <div className={`col-span-3 text-center py-8 ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`}>
+              No projects found
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -537,33 +655,59 @@ export function ProfilePage() {
           </div>
 
           <div className="space-y-3">
-            {activeLanguages.map((language) => (
-              <div
-                key={language.name}
-                className="backdrop-blur-[20px] bg-white/[0.15] rounded-[12px] border border-white/25 p-4 hover:bg-white/[0.2] transition-all group cursor-pointer"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[24px]">{language.icon}</span>
-                    <span className={`text-[15px] font-semibold transition-colors ${
-                      theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                    }`}>{language.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {Array.from({ length: 3 }).map((_, idx) => (
-                      <div
-                        key={idx}
-                        className={`w-2.5 h-2.5 rounded-full transition-all ${
-                          idx < language.activityLevel
-                            ? 'bg-[#c9983a] shadow-[0_0_8px_rgba(201,152,58,0.6)] group-hover:scale-125'
-                            : 'bg-white/20'
-                        }`}
-                      />
-                    ))}
+            {isLoadingProfile ? (
+              // Skeleton loaders for languages
+              Array.from({ length: 3 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="backdrop-blur-[20px] bg-white/[0.15] rounded-[12px] border border-white/25 p-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <SkeletonLoader variant="circle" width="24px" height="24px" />
+                      <SkeletonLoader variant="text" width="80px" height="15px" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <SkeletonLoader variant="circle" width="10px" height="10px" />
+                      <SkeletonLoader variant="circle" width="10px" height="10px" />
+                      <SkeletonLoader variant="circle" width="10px" height="10px" />
+                    </div>
                   </div>
                 </div>
+              ))
+            ) : activeLanguages.length > 0 ? (
+              activeLanguages.map((language) => (
+                <div
+                  key={language.name}
+                  className="backdrop-blur-[20px] bg-white/[0.15] rounded-[12px] border border-white/25 p-4 hover:bg-white/[0.2] transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <LanguageIcon language={language.name} className="w-6 h-6" />
+                      <span className={`text-[15px] font-semibold transition-colors ${
+                        theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+                      }`}>{language.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {Array.from({ length: 3 }).map((_, idx) => (
+                        <div
+                          key={idx}
+                          className={`w-2.5 h-2.5 rounded-full transition-all ${
+                            idx < language.activityLevel
+                              ? 'bg-[#c9983a] shadow-[0_0_8px_rgba(201,152,58,0.6)] group-hover:scale-125'
+                              : 'bg-white/20'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className={`text-center py-4 ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`}>
+                No languages found
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -577,33 +721,59 @@ export function ProfilePage() {
           </div>
 
           <div className="space-y-3">
-            {activeEcosystems.map((ecosystem) => (
-              <div
-                key={ecosystem.name}
-                className="backdrop-blur-[20px] bg-white/[0.15] rounded-[12px] border border-white/25 p-4 hover:bg-white/[0.2] transition-all group cursor-pointer"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[24px]">{ecosystem.icon}</span>
-                    <span className={`text-[15px] font-semibold transition-colors ${
-                      theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
-                    }`}>{ecosystem.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {Array.from({ length: 3 }).map((_, idx) => (
-                      <div
-                        key={idx}
-                        className={`w-2.5 h-2.5 rounded-full transition-all ${
-                          idx < ecosystem.activityLevel
-                            ? 'bg-[#c9983a] shadow-[0_0_8px_rgba(201,152,58,0.6)] group-hover:scale-125'
-                            : 'bg-white/20'
-                        }`}
-                      />
-                    ))}
+            {isLoadingProfile ? (
+              // Skeleton loaders for ecosystems
+              Array.from({ length: 2 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="backdrop-blur-[20px] bg-white/[0.15] rounded-[12px] border border-white/25 p-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <SkeletonLoader variant="circle" width="24px" height="24px" />
+                      <SkeletonLoader variant="text" width="100px" height="15px" />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <SkeletonLoader variant="circle" width="10px" height="10px" />
+                      <SkeletonLoader variant="circle" width="10px" height="10px" />
+                      <SkeletonLoader variant="circle" width="10px" height="10px" />
+                    </div>
                   </div>
                 </div>
+              ))
+            ) : activeEcosystems.length > 0 ? (
+              activeEcosystems.map((ecosystem) => (
+                <div
+                  key={ecosystem.name}
+                  className="backdrop-blur-[20px] bg-white/[0.15] rounded-[12px] border border-white/25 p-4 hover:bg-white/[0.2] transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Globe className="w-6 h-6 text-[#c9983a]" />
+                      <span className={`text-[15px] font-semibold transition-colors ${
+                        theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
+                      }`}>{ecosystem.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {Array.from({ length: 3 }).map((_, idx) => (
+                        <div
+                          key={idx}
+                          className={`w-2.5 h-2.5 rounded-full transition-all ${
+                            idx < ecosystem.activityLevel
+                              ? 'bg-[#c9983a] shadow-[0_0_8px_rgba(201,152,58,0.6)] group-hover:scale-125'
+                              : 'bg-white/20'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className={`text-center py-4 ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`}>
+                No ecosystems found
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Github, User, Upload, Link as LinkIcon } from 'lucide-react';
 import { useTheme } from '../../../../shared/contexts/ThemeContext';
-import { getCurrentUser } from '../../../../shared/api/client';
+import { getCurrentUser, updateProfile, updateAvatar } from '../../../../shared/api/client';
 
 interface CurrentUser {
   id: string;
@@ -21,6 +21,8 @@ export function ProfileTab() {
   const { theme } = useTheme();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Form state
   const [firstName, setFirstName] = useState('');
@@ -28,6 +30,7 @@ export function ProfileTab() {
   const [location, setLocation] = useState('');
   const [website, setWebsite] = useState('');
   const [bio, setBio] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -38,6 +41,10 @@ export function ProfileTab() {
         
         // Prefill form fields from GitHub data
         if (user.github) {
+          // Set avatar URL
+          if (user.github.avatar_url) {
+            setAvatarUrl(user.github.avatar_url);
+          }
           // Split name into first and last name
           if (user.github.name) {
             const nameParts = user.github.name.trim().split(/\s+/);
@@ -66,6 +73,69 @@ export function ProfileTab() {
     };
     fetchUser();
   }, []);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/jpg', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      alert('Please select a valid image file (SVG, PNG, JPG, or GIF)');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    // Convert to base64 data URL
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result as string;
+      setAvatarUrl(base64String);
+      
+      // Upload to backend
+      try {
+        await updateAvatar(base64String);
+        // Update currentUser state
+        if (currentUser) {
+          setCurrentUser({
+            ...currentUser,
+            github: {
+              ...currentUser.github!,
+              avatar_url: base64String,
+            },
+          });
+        }
+      } catch (error) {
+        console.error('Failed to update avatar:', error);
+        alert('Failed to update avatar. Please try again.');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await updateProfile({
+        first_name: firstName || undefined,
+        last_name: lastName || undefined,
+        location: location || undefined,
+        website: website || undefined,
+        bio: bio || undefined,
+      });
+      alert('Profile updated successfully!');
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      alert('Failed to update profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -146,9 +216,9 @@ export function ProfileTab() {
         <div className="flex items-center gap-4">
           {isLoading ? (
             <div className="w-16 h-16 rounded-full bg-white/10 animate-pulse" />
-          ) : currentUser?.github?.avatar_url ? (
+          ) : avatarUrl ? (
             <img
-              src={currentUser.github.avatar_url}
+              src={avatarUrl}
               alt="Profile"
               className="w-16 h-16 rounded-full object-cover shadow-md border border-white/15"
             />
@@ -157,11 +227,21 @@ export function ProfileTab() {
               <User className="w-8 h-8 text-white" />
             </div>
           )}
-          <button className={`px-5 py-2.5 rounded-[12px] backdrop-blur-[30px] border font-medium text-[14px] hover:bg-white/[0.2] transition-all flex items-center gap-2 ${
-            theme === 'dark'
-              ? 'bg-[#3d342c]/[0.4] border-white/15 text-[#d4c5b0]'
-              : 'bg-white/[0.15] border-white/25 text-[#2d2820]'
-          }`}>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept="image/svg+xml,image/png,image/jpeg,image/jpg,image/gif"
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className={`px-5 py-2.5 rounded-[12px] backdrop-blur-[30px] border font-medium text-[14px] hover:bg-white/[0.2] transition-all flex items-center gap-2 ${
+              theme === 'dark'
+                ? 'bg-[#3d342c]/[0.4] border-white/15 text-[#d4c5b0]'
+                : 'bg-white/[0.15] border-white/25 text-[#2d2820]'
+            }`}
+          >
             <Upload className="w-4 h-4" />
             Update
           </button>
@@ -392,8 +472,12 @@ export function ProfileTab() {
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <button className="px-8 py-3 rounded-[16px] bg-gradient-to-br from-[#c9983a] to-[#a67c2e] text-white font-semibold text-[15px] shadow-[0_6px_24px_rgba(162,121,44,0.4)] hover:shadow-[0_8px_28px_rgba(162,121,44,0.5)] transition-all border border-white/10">
-          Save
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className={`px-8 py-3 rounded-[16px] bg-gradient-to-br from-[#c9983a] to-[#a67c2e] text-white font-semibold text-[15px] shadow-[0_6px_24px_rgba(162,121,44,0.4)] hover:shadow-[0_8px_28px_rgba(162,121,44,0.5)] transition-all border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          {isSaving ? 'Saving...' : 'Save'}
         </button>
       </div>
     </div>

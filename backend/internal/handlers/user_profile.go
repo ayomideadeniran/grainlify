@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -550,6 +552,138 @@ func calculateContributionLevel(count int, maxCount int) int {
 		return 3 // High
 	} else {
 		return 4 // Very high
+	}
+}
+
+// UpdateProfile updates user profile information (first_name, last_name, location, website, bio)
+func (h *UserProfileHandler) UpdateProfile() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if h.db == nil || h.db.Pool == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "db_not_configured"})
+		}
+
+		// Get user ID from JWT
+		sub, _ := c.Locals(auth.LocalUserID).(string)
+		userID, err := uuid.Parse(sub)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid_user"})
+		}
+
+		var req struct {
+			FirstName *string `json:"first_name,omitempty"`
+			LastName  *string `json:"last_name,omitempty"`
+			Location  *string `json:"location,omitempty"`
+			Website   *string `json:"website,omitempty"`
+			Bio       *string `json:"bio,omitempty"`
+		}
+
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_json"})
+		}
+
+		// Build update query dynamically based on provided fields
+		var updates []string
+		var args []interface{}
+		argPos := 1
+
+		if req.FirstName != nil {
+			updates = append(updates, fmt.Sprintf("first_name = $%d", argPos))
+			args = append(args, strings.TrimSpace(*req.FirstName))
+			argPos++
+		}
+		if req.LastName != nil {
+			updates = append(updates, fmt.Sprintf("last_name = $%d", argPos))
+			args = append(args, strings.TrimSpace(*req.LastName))
+			argPos++
+		}
+		if req.Location != nil {
+			updates = append(updates, fmt.Sprintf("location = $%d", argPos))
+			args = append(args, strings.TrimSpace(*req.Location))
+			argPos++
+		}
+		if req.Website != nil {
+			updates = append(updates, fmt.Sprintf("website = $%d", argPos))
+			args = append(args, strings.TrimSpace(*req.Website))
+			argPos++
+		}
+		if req.Bio != nil {
+			updates = append(updates, fmt.Sprintf("bio = $%d", argPos))
+			args = append(args, strings.TrimSpace(*req.Bio))
+			argPos++
+		}
+
+		if len(updates) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "no_fields_to_update"})
+		}
+
+		// Always update updated_at
+		updates = append(updates, "updated_at = now()")
+		args = append(args, userID)
+
+		query := fmt.Sprintf(`
+UPDATE users
+SET %s
+WHERE id = $%d
+`, strings.Join(updates, ", "), argPos)
+
+		_, err = h.db.Pool.Exec(c.Context(), query, args...)
+		if err != nil {
+			slog.Error("failed to update user profile", "error", err, "user_id", userID)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "profile_update_failed"})
+		}
+
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "profile_updated"})
+	}
+}
+
+// UpdateAvatar updates user avatar URL
+func (h *UserProfileHandler) UpdateAvatar() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if h.db == nil || h.db.Pool == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "db_not_configured"})
+		}
+
+		// Get user ID from JWT
+		sub, _ := c.Locals(auth.LocalUserID).(string)
+		userID, err := uuid.Parse(sub)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid_user"})
+		}
+
+		var req struct {
+			AvatarURL string `json:"avatar_url"`
+		}
+
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_json"})
+		}
+
+		avatarURL := strings.TrimSpace(req.AvatarURL)
+		if avatarURL == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "avatar_url_required"})
+		}
+
+		// Validate URL format (either http/https URL or data URL)
+		if !strings.HasPrefix(avatarURL, "http://") &&
+			!strings.HasPrefix(avatarURL, "https://") &&
+			!strings.HasPrefix(avatarURL, "data:image/") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid_avatar_url_format"})
+		}
+
+		_, err = h.db.Pool.Exec(c.Context(), `
+UPDATE users
+SET avatar_url = $1, updated_at = now()
+WHERE id = $2
+`, avatarURL, userID)
+		if err != nil {
+			slog.Error("failed to update user avatar", "error", err, "user_id", userID)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "avatar_update_failed"})
+		}
+
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message":    "avatar_updated",
+			"avatar_url": avatarURL,
+		})
 	}
 }
 

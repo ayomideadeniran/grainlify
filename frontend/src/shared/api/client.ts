@@ -162,6 +162,26 @@ export const getProfileActivity = (limit = 50, offset = 0) =>
     offset: number;
   }>(`/profile/activity?limit=${limit}&offset=${offset}`, { requiresAuth: true });
 
+export const updateProfile = (data: {
+  first_name?: string;
+  last_name?: string;
+  location?: string;
+  website?: string;
+  bio?: string;
+}) =>
+  apiRequest<{ message: string }>('/profile/update', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+    requiresAuth: true,
+  });
+
+export const updateAvatar = (avatarUrl: string) =>
+  apiRequest<{ message: string; avatar_url: string }>('/profile/avatar', {
+    method: 'PUT',
+    body: JSON.stringify({ avatar_url: avatarUrl }),
+    requiresAuth: true,
+  });
+
 // Projects
 export const getPublicProjects = (params?: {
   ecosystem?: string;
