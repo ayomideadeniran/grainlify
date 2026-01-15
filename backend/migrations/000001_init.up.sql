@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS wallets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  wallet_type TEXT NOT NULL CHECK (wallet_type IN ('evm', 'casper_ed25519', 'casper_secp256k1')),
+  wallet_type TEXT NOT NULL CHECK (wallet_type IN ('evm', 'stellar_ed25519', 'stellar_secp256k1')),
   address TEXT NOT NULL,
   public_key TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -23,7 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets(user_id);
 
 CREATE TABLE IF NOT EXISTS auth_nonces (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  wallet_type TEXT NOT NULL CHECK (wallet_type IN ('evm', 'casper_ed25519', 'casper_secp256k1')),
+  wallet_type TEXT NOT NULL CHECK (wallet_type IN ('evm', 'stellar_ed25519', 'stellar_secp256k1')),
   address TEXT NOT NULL,
   nonce TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
