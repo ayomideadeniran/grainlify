@@ -138,7 +138,7 @@ export function DatePicker({
             <CalendarIcon className={`h-4 w-4 ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`} />
           </button>
         </PopoverTrigger>
-        <PopoverContent className={cn("w-auto p-0", popoverContentClasses)} align="start">
+        <PopoverContent className={cn("w-auto p-0 z-[10001]", popoverContentClasses)} align="start">
           <Calendar
             mode="single"
             selected={date}
