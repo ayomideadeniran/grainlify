@@ -134,11 +134,11 @@ export function ContributionsTab() {
     <>
       <div className="space-y-4">
         {/* Filter and Search Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Filter Button */}
           <button
             onClick={() => setIsFilterOpen(true)}
-            className={`w-full sm:w-12 h-10 sm:h-12 flex items-center justify-center rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] hover:border-[#c9983a]/40 transition-all ${
+            className={`h-10 sm:h-12 flex-shrink-0 w-10 sm:w-12 flex items-center justify-center rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 hover:bg-white/[0.2] hover:border-[#c9983a]/40 transition-all ${
               theme === "dark" ? "text-[#b8a898]" : "text-[#7a6b5a]"
             }`}
           >

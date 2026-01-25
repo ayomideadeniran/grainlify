@@ -93,9 +93,9 @@ export function RewardsTab() {
     <>
       <div className="space-y-4">
         {/* Filter and Search Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Filter Button */}
-          <button className="w-full sm:w-12 h-12 flex items-center justify-center rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 text-[#7a6b5a] hover:bg-white/[0.2] hover:border-[#c9983a]/40 transition-all">
+          <button className="h-12 flex-shrink-0 w-10 sm:w-12 flex items-center justify-center rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 text-[#7a6b5a] hover:bg-white/[0.2] hover:border-[#c9983a]/40 transition-all">
             <Filter className="w-5 h-5" />
           </button>
 
@@ -105,18 +105,18 @@ export function RewardsTab() {
             <input
               type="text"
               placeholder="Search"
-              className="w-full pl-12 pr-4 py-2.5 sm:py-3 rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 text-[#2d2820] placeholder-[#7a6b5a] focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/40 transition-all text-[13px]"
+              className="w-full h-12 pl-12 pr-4 py-2.5 sm:py-3 rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 text-[#2d2820] placeholder-[#7a6b5a] focus:outline-none focus:bg-white/[0.2] focus:border-[#c9983a]/40 transition-all text-[13px]"
             />
           </div>
-
-          {/* Grid Layout Button */}
-          <button
-            onClick={() => setIsColumnsModalOpen(!isColumnsModalOpen)}
-            className="w-full sm:w-12 h-12 flex items-center justify-center rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 text-[#7a6b5a] hover:bg-white/[0.2] hover:border-[#c9983a]/40 transition-all"
-          >
-            <LayoutGrid className="w-5 h-5" />
-          </button>
         </div>
+
+        {/* Grid Layout Button */}
+        <button
+          onClick={() => setIsColumnsModalOpen(!isColumnsModalOpen)}
+          className="w-full h-12 flex-shrink-0 sm:w-12 flex items-center justify-center rounded-[12px] backdrop-blur-[30px] bg-white/[0.15] border border-white/25 text-[#7a6b5a] hover:bg-white/[0.2] hover:border-[#c9983a]/40 transition-all"
+        >
+          <LayoutGrid className="w-5 h-5" />
+        </button>
 
         {/* Desktop Table View - Hidden on Mobile */}
         <div className="hidden md:block backdrop-blur-[30px] bg-white/[0.12] rounded-[20px] border border-white/20 overflow-hidden">
