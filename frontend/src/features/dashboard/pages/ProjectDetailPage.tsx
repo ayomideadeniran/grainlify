@@ -200,8 +200,18 @@ export function ProjectDetailPage({ onBack, onIssueClick, projectId: propProject
     const list = (project?.languages || [])
       .slice()
       .sort((a, b) => b.percentage - a.percentage)
-      .map((l) => ({ name: l.name, percentage: Math.round(l.percentage) }));
-    return list.length ? list : (project?.language ? [{ name: project.language, percentage: 100 }] : []);
+      .map((l) => {
+        const pct = Number(l.percentage) || 0;
+        const isTiny = pct > 0 && pct < 1;
+        return {
+          name: l.name,
+          percentage: pct,
+          displayLabel: isTiny ? '<1%' : `${Math.round(pct)}%`,
+          barWidth: isTiny ? 1 : Math.round(pct),
+        };
+      });
+    if (list.length) return list;
+    return project?.language ? [{ name: project.language, percentage: 100, displayLabel: '100%', barWidth: 100 }] : [];
   }, [project?.languages, project?.language]);
 
   const labelName = (l: any): string | null => {
@@ -482,12 +492,12 @@ export function ProjectDetailPage({ onBack, onIssueClick, projectId: propProject
                         theme === 'dark' ? 'text-[#f5f5f5]' : 'text-[#2d2820]'
                       }`}>{lang.name}</span>
                     </div>
-                    <span className="text-[12px] font-bold text-[#c9983a]">{lang.percentage}%</span>
+                    <span className="text-[12px] font-bold text-[#c9983a]">{lang.displayLabel}</span>
                   </div>
                   <div className="h-2 rounded-full backdrop-blur-[15px] bg-white/[0.08] border border-white/15 overflow-hidden">
                     <div 
                       className="h-full bg-gradient-to-r from-[#c9983a] to-[#d4af37] rounded-full transition-all duration-500"
-                      style={{ width: `${lang.percentage}%` }}
+                      style={{ width: `${lang.barWidth}%` }}
                     />
                   </div>
                 </div>

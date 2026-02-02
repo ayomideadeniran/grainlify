@@ -179,9 +179,10 @@ func New(cfg config.Config, deps Deps) *fiber.App {
 	authGroup.Post("/kyc/start", auth.RequireAuth(cfg.JWTSecret), kyc.Start())
 	authGroup.Get("/kyc/status", auth.RequireAuth(cfg.JWTSecret), kyc.Status())
 
-	// Public ecosystems list (includes computed project_count and user_count).
+	// Public ecosystems list and detail (includes computed project_count and user_count).
 	ecosystems := handlers.NewEcosystemsPublicHandler(deps.DB)
 	app.Get("/ecosystems", ecosystems.ListActive())
+	app.Get("/ecosystems/:id", ecosystems.GetByID())
 
 	// Open Source Week (public)
 	osw := handlers.NewOpenSourceWeekHandler(deps.DB)

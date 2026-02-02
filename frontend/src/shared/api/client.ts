@@ -500,6 +500,29 @@ export const getEcosystems = () =>
     }>;
   }>("/ecosystems");
 
+export type EcosystemDetail = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  website_url: string | null;
+  logo_url: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  about?: string | null;
+  links?: Array<{ label: string; url: string }> | null;
+  key_areas?: Array<{ title: string; description: string }> | null;
+  technologies?: string[] | null;
+  project_count: number;
+  contributors_count: number;
+  open_issues_count: number;
+  open_prs_count: number;
+};
+
+export const getEcosystemDetail = (id: string) =>
+  apiRequest<EcosystemDetail>(`/ecosystems/${id}`);
+
 // Open Source Week
 export const getOpenSourceWeekEvents = () =>
   apiRequest<{
@@ -572,6 +595,10 @@ export const createEcosystem = (data: {
   website_url?: string;
   logo_url?: string;
   status: "active" | "inactive";
+  about?: string;
+  links?: Array<{ label: string; url: string }>;
+  key_areas?: Array<{ title: string; description: string }>;
+  technologies?: string[];
 }) =>
   apiRequest<{
     id: string;
@@ -604,6 +631,10 @@ export const getAdminEcosystems = () =>
       user_count: number;
       created_at: string;
       updated_at: string;
+      about: string | null;
+      links: Array<{ label: string; url: string }> | null;
+      key_areas: Array<{ title: string; description: string }> | null;
+      technologies: string[] | null;
     }>;
   }>("/admin/ecosystems", {
     requiresAuth: true,
@@ -624,6 +655,10 @@ export const updateEcosystem = (id: string, data: {
   website_url?: string;
   logo_url?: string;
   status: 'active' | 'inactive';
+  about?: string;
+  links?: Array<{ label: string; url: string }>;
+  key_areas?: Array<{ title: string; description: string }>;
+  technologies?: string[];
 }) =>
   apiRequest<{
     id: string;

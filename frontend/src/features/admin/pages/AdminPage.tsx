@@ -1,10 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../../../shared/contexts/ThemeContext';
-import { Shield, Globe, Plus, Sparkles, Trash2, ExternalLink, Calendar, Pencil } from 'lucide-react';
+import { Shield, Globe, Plus, Sparkles, Trash2, ExternalLink, Calendar, Pencil, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Modal, ModalFooter, ModalButton, ModalInput, ModalSelect } from '../../../shared/components/ui/Modal';
 import { DatePicker } from '../../../shared/components/ui/DatePicker';
 import { createEcosystem, getAdminEcosystems, deleteEcosystem, updateEcosystem, createOpenSourceWeekEvent, getAdminOpenSourceWeekEvents, deleteOpenSourceWeekEvent } from '../../../shared/api/client';
+
+interface EcosystemLink {
+  label: string;
+  url: string;
+}
+interface EcosystemKeyArea {
+  title: string;
+  description: string;
+}
 
 interface Ecosystem {
   id: string;
@@ -18,6 +27,10 @@ interface Ecosystem {
   user_count: number;
   created_at: string;
   updated_at: string;
+  about?: string | null;
+  links?: EcosystemLink[] | null;
+  key_areas?: EcosystemKeyArea[] | null;
+  technologies?: string[] | null;
 }
 
 export function AdminPage() {
@@ -34,14 +47,22 @@ export function AdminPage() {
     description: '',
     logoUrl: '',
     status: 'active',
-    websiteUrl: ''
+    websiteUrl: '',
+    about: '',
+    links: [] as EcosystemLink[],
+    key_areas: [] as EcosystemKeyArea[],
+    technologies: [] as string[],
   });
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     logoUrl: '',
     status: 'active',
-    websiteUrl: ''
+    websiteUrl: '',
+    about: '',
+    links: [] as EcosystemLink[],
+    key_areas: [] as EcosystemKeyArea[],
+    technologies: [] as string[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -54,14 +75,14 @@ export function AdminPage() {
   };
 
   const validateDescription = (description: string) => {
-    if (!description.trim()) return 'Description is required';
+    if (!description.trim()) return null;
     if (description.length < 10) return 'Description must be at least 10 characters';
     if (description.length > 500) return 'Description must be less than 500 characters';
     return null;
   };
 
   const validateWebsiteUrl = (url: string) => {
-    if (!url.trim()) return 'Website URL is required';
+    if (!url.trim()) return null;
     try {
       new URL(url);
       if (!url.startsWith('http')) return 'URL must start with http:// or https://';
@@ -392,6 +413,10 @@ export function AdminPage() {
         website_url: formData.websiteUrl || undefined,
         logo_url: formData.logoUrl || undefined,
         status: formData.status as 'active' | 'inactive',
+        about: formData.about || undefined,
+        links: formData.links.filter((l) => l.label.trim() || l.url.trim()).length ? formData.links : undefined,
+        key_areas: formData.key_areas.filter((k) => k.title.trim() || k.description.trim()).length ? formData.key_areas : undefined,
+        technologies: formData.technologies.filter((t) => t.trim()).length ? formData.technologies : undefined,
       });
 
       // Success - close modal and reset form
@@ -402,7 +427,11 @@ export function AdminPage() {
         description: '',
         logoUrl: '',
         status: 'active',
-        websiteUrl: ''
+        websiteUrl: '',
+        about: '',
+        links: [],
+        key_areas: [],
+        technologies: [],
       });
 
       // Refresh ecosystems list
@@ -418,12 +447,19 @@ export function AdminPage() {
   };
 
   const openEditModal = (ecosystem: Ecosystem) => {
+    const links = Array.isArray(ecosystem.links) ? ecosystem.links : [];
+    const keyAreas = Array.isArray(ecosystem.key_areas) ? ecosystem.key_areas : [];
+    const technologies = Array.isArray(ecosystem.technologies) ? ecosystem.technologies : [];
     setEditFormData({
       name: ecosystem.name,
       description: ecosystem.description || '',
       logoUrl: ecosystem.logo_url || '',
       status: ecosystem.status,
-      websiteUrl: ecosystem.website_url || ''
+      websiteUrl: ecosystem.website_url || '',
+      about: ecosystem.about || '',
+      links: links.map((l) => ({ label: l.label || '', url: l.url || '' })),
+      key_areas: keyAreas.map((k) => ({ title: k.title || '', description: k.description || '' })),
+      technologies: [...technologies],
     });
     setEditingEcosystem(ecosystem);
     setErrors({});
@@ -459,6 +495,10 @@ export function AdminPage() {
         website_url: editFormData.websiteUrl || undefined,
         logo_url: editFormData.logoUrl || undefined,
         status: editFormData.status as 'active' | 'inactive',
+        about: editFormData.about || undefined,
+        links: editFormData.links.filter((l) => l.label.trim() || l.url.trim()).length ? editFormData.links : undefined,
+        key_areas: editFormData.key_areas.filter((k) => k.title.trim() || k.description.trim()).length ? editFormData.key_areas : undefined,
+        technologies: editFormData.technologies.filter((t) => t.trim()).length ? editFormData.technologies : undefined,
       });
 
       // Success - close modal and reset form
@@ -469,7 +509,11 @@ export function AdminPage() {
         description: '',
         logoUrl: '',
         status: 'active',
-        websiteUrl: ''
+        websiteUrl: '',
+        about: '',
+        links: [],
+        key_areas: [],
+        technologies: [],
       });
 
       toast.success('Ecosystem updated successfully');
@@ -962,6 +1006,49 @@ export function AdminPage() {
               placeholder="https://example.com"
               error={errors.websiteUrl}
             />
+
+            <ModalInput
+              label="About (detail page)"
+              value={formData.about}
+              onChange={(value) => setFormData({ ...formData, about: value })}
+              placeholder="Longer description for the ecosystem detail page..."
+              rows={4}
+            />
+
+            <div className="space-y-2">
+              <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`}>Links (detail page)</label>
+              {formData.links.map((link, idx) => (
+                <div key={idx} className="flex gap-2 items-start">
+                  <input type="text" placeholder="Label" value={link.label} onChange={(e) => { const next = [...formData.links]; next[idx] = { ...next[idx], label: e.target.value }; setFormData({ ...formData, links: next }); }} className={`flex-1 min-w-0 px-3 py-2 rounded-[10px] border text-[13px] ${theme === 'dark' ? 'bg-white/10 border-white/20 text-[#e8dfd0]' : 'bg-white/40 border-white/30 text-[#2d2820]'}`} />
+                  <input type="url" placeholder="URL" value={link.url} onChange={(e) => { const next = [...formData.links]; next[idx] = { ...next[idx], url: e.target.value }; setFormData({ ...formData, links: next }); }} className={`flex-1 min-w-0 px-3 py-2 rounded-[10px] border text-[13px] ${theme === 'dark' ? 'bg-white/10 border-white/20 text-[#e8dfd0]' : 'bg-white/40 border-white/30 text-[#2d2820]'}`} />
+                  <button type="button" onClick={() => setFormData({ ...formData, links: formData.links.filter((_, i) => i !== idx) })} className={`p-2 rounded-[10px] ${theme === 'dark' ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-500/10 text-red-600'}`}><X className="w-4 h-4" /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setFormData({ ...formData, links: [...formData.links, { label: '', url: '' }] })} className={`text-[13px] font-medium flex items-center gap-1.5 ${theme === 'dark' ? 'text-[#c9983a] hover:text-[#e8c77f]' : 'text-[#a67c2e] hover:text-[#c9983a]'}`}><Plus className="w-4 h-4" /> Add link</button>
+            </div>
+
+            <div className="space-y-2">
+              <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`}>Key Areas (detail page)</label>
+              {formData.key_areas.map((area, idx) => (
+                <div key={idx} className="space-y-1.5 p-3 rounded-[12px] border border-white/20 bg-white/[0.06]">
+                  <div className="flex justify-end"><button type="button" onClick={() => setFormData({ ...formData, key_areas: formData.key_areas.filter((_, i) => i !== idx) })} className={`p-1 rounded ${theme === 'dark' ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-500/10 text-red-600'}`}><X className="w-4 h-4" /></button></div>
+                  <input type="text" placeholder="Title" value={area.title} onChange={(e) => { const next = [...formData.key_areas]; next[idx] = { ...next[idx], title: e.target.value }; setFormData({ ...formData, key_areas: next }); }} className={`w-full px-3 py-2 rounded-[10px] border text-[13px] ${theme === 'dark' ? 'bg-white/10 border-white/20 text-[#e8dfd0]' : 'bg-white/40 border-white/30 text-[#2d2820]'}`} />
+                  <input type="text" placeholder="Description" value={area.description} onChange={(e) => { const next = [...formData.key_areas]; next[idx] = { ...next[idx], description: e.target.value }; setFormData({ ...formData, key_areas: next }); }} className={`w-full px-3 py-2 rounded-[10px] border text-[13px] ${theme === 'dark' ? 'bg-white/10 border-white/20 text-[#e8dfd0]' : 'bg-white/40 border-white/30 text-[#2d2820]'}`} />
+                </div>
+              ))}
+              <button type="button" onClick={() => setFormData({ ...formData, key_areas: [...formData.key_areas, { title: '', description: '' }] })} className={`text-[13px] font-medium flex items-center gap-1.5 ${theme === 'dark' ? 'text-[#c9983a] hover:text-[#e8c77f]' : 'text-[#a67c2e] hover:text-[#c9983a]'}`}><Plus className="w-4 h-4" /> Add key area</button>
+            </div>
+
+            <div className="space-y-2">
+              <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`}>Technologies (detail page)</label>
+              {formData.technologies.map((tech, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <input type="text" placeholder="e.g. TypeScript, Rust" value={tech} onChange={(e) => { const next = [...formData.technologies]; next[idx] = e.target.value; setFormData({ ...formData, technologies: next }); }} className={`flex-1 min-w-0 px-3 py-2 rounded-[10px] border text-[13px] ${theme === 'dark' ? 'bg-white/10 border-white/20 text-[#e8dfd0]' : 'bg-white/40 border-white/30 text-[#2d2820]'}`} />
+                  <button type="button" onClick={() => setFormData({ ...formData, technologies: formData.technologies.filter((_, i) => i !== idx) })} className={`p-2 rounded-[10px] ${theme === 'dark' ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-500/10 text-red-600'}`}><X className="w-4 h-4" /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setFormData({ ...formData, technologies: [...formData.technologies, ''] })} className={`text-[13px] font-medium flex items-center gap-1.5 ${theme === 'dark' ? 'text-[#c9983a] hover:text-[#e8c77f]' : 'text-[#a67c2e] hover:text-[#c9983a]'}`}><Plus className="w-4 h-4" /> Add technology</button>
+            </div>
           </div>
 
           <ModalFooter>
@@ -1090,6 +1177,101 @@ export function AdminPage() {
               placeholder="https://example.com"
               error={errors.websiteUrl}
             />
+
+            <ModalInput
+              label="About (detail page)"
+              value={editFormData.about}
+              onChange={(value) => setEditFormData({ ...editFormData, about: value })}
+              placeholder="Longer description for the ecosystem detail page..."
+              rows={4}
+            />
+
+            <div className="space-y-2">
+              <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`}>Links (detail page)</label>
+              {editFormData.links.map((link, idx) => (
+                <div key={idx} className="flex gap-2 items-start">
+                  <input
+                    type="text"
+                    placeholder="Label"
+                    value={link.label}
+                    onChange={(e) => {
+                      const next = [...editFormData.links];
+                      next[idx] = { ...next[idx], label: e.target.value };
+                      setEditFormData({ ...editFormData, links: next });
+                    }}
+                    className={`flex-1 min-w-0 px-3 py-2 rounded-[10px] border text-[13px] ${theme === 'dark' ? 'bg-white/10 border-white/20 text-[#e8dfd0]' : 'bg-white/40 border-white/30 text-[#2d2820]'}`}
+                  />
+                  <input
+                    type="url"
+                    placeholder="URL"
+                    value={link.url}
+                    onChange={(e) => {
+                      const next = [...editFormData.links];
+                      next[idx] = { ...next[idx], url: e.target.value };
+                      setEditFormData({ ...editFormData, links: next });
+                    }}
+                    className={`flex-1 min-w-0 px-3 py-2 rounded-[10px] border text-[13px] ${theme === 'dark' ? 'bg-white/10 border-white/20 text-[#e8dfd0]' : 'bg-white/40 border-white/30 text-[#2d2820]'}`}
+                  />
+                  <button type="button" onClick={() => setEditFormData({ ...editFormData, links: editFormData.links.filter((_, i) => i !== idx) })} className={`p-2 rounded-[10px] ${theme === 'dark' ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-500/10 text-red-600'}`}><X className="w-4 h-4" /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setEditFormData({ ...editFormData, links: [...editFormData.links, { label: '', url: '' }] })} className={`text-[13px] font-medium flex items-center gap-1.5 ${theme === 'dark' ? 'text-[#c9983a] hover:text-[#e8c77f]' : 'text-[#a67c2e] hover:text-[#c9983a]'}`}><Plus className="w-4 h-4" /> Add link</button>
+            </div>
+
+            <div className="space-y-2">
+              <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`}>Key Areas (detail page)</label>
+              {editFormData.key_areas.map((area, idx) => (
+                <div key={idx} className="space-y-1.5 p-3 rounded-[12px] border border-white/20 bg-white/[0.06]">
+                  <div className="flex justify-end">
+                    <button type="button" onClick={() => setEditFormData({ ...editFormData, key_areas: editFormData.key_areas.filter((_, i) => i !== idx) })} className={`p-1 rounded ${theme === 'dark' ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-500/10 text-red-600'}`}><X className="w-4 h-4" /></button>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Title"
+                    value={area.title}
+                    onChange={(e) => {
+                      const next = [...editFormData.key_areas];
+                      next[idx] = { ...next[idx], title: e.target.value };
+                      setEditFormData({ ...editFormData, key_areas: next });
+                    }}
+                    className={`w-full px-3 py-2 rounded-[10px] border text-[13px] ${theme === 'dark' ? 'bg-white/10 border-white/20 text-[#e8dfd0]' : 'bg-white/40 border-white/30 text-[#2d2820]'}`}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Description"
+                    value={area.description}
+                    onChange={(e) => {
+                      const next = [...editFormData.key_areas];
+                      next[idx] = { ...next[idx], description: e.target.value };
+                      setEditFormData({ ...editFormData, key_areas: next });
+                    }}
+                    className={`w-full px-3 py-2 rounded-[10px] border text-[13px] ${theme === 'dark' ? 'bg-white/10 border-white/20 text-[#e8dfd0]' : 'bg-white/40 border-white/30 text-[#2d2820]'}`}
+                  />
+                </div>
+              ))}
+              <button type="button" onClick={() => setEditFormData({ ...editFormData, key_areas: [...editFormData.key_areas, { title: '', description: '' }] })} className={`text-[13px] font-medium flex items-center gap-1.5 ${theme === 'dark' ? 'text-[#c9983a] hover:text-[#e8c77f]' : 'text-[#a67c2e] hover:text-[#c9983a]'}`}><Plus className="w-4 h-4" /> Add key area</button>
+            </div>
+
+            <div className="space-y-2">
+              <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-[#d4d4d4]' : 'text-[#7a6b5a]'}`}>Technologies (detail page)</label>
+              {editFormData.technologies.map((tech, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. TypeScript, Rust"
+                    value={tech}
+                    onChange={(e) => {
+                      const next = [...editFormData.technologies];
+                      next[idx] = e.target.value;
+                      setEditFormData({ ...editFormData, technologies: next });
+                    }}
+                    className={`flex-1 min-w-0 px-3 py-2 rounded-[10px] border text-[13px] ${theme === 'dark' ? 'bg-white/10 border-white/20 text-[#e8dfd0]' : 'bg-white/40 border-white/30 text-[#2d2820]'}`}
+                  />
+                  <button type="button" onClick={() => setEditFormData({ ...editFormData, technologies: editFormData.technologies.filter((_, i) => i !== idx) })} className={`p-2 rounded-[10px] ${theme === 'dark' ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-500/10 text-red-600'}`}><X className="w-4 h-4" /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setEditFormData({ ...editFormData, technologies: [...editFormData.technologies, ''] })} className={`text-[13px] font-medium flex items-center gap-1.5 ${theme === 'dark' ? 'text-[#c9983a] hover:text-[#e8c77f]' : 'text-[#a67c2e] hover:text-[#c9983a]'}`}><Plus className="w-4 h-4" /> Add technology</button>
+            </div>
           </div>
 
           <ModalFooter>
