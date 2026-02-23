@@ -1,9 +1,9 @@
 #![no_std]
 
-#[cfg(test)] 
-mod test_metadata;
 mod events;
 mod invariants;
+#[cfg(test)]
+mod test_metadata;
 
 #[cfg(test)]
 mod test_rbac;
@@ -413,7 +413,7 @@ pub struct Escrow {
 pub enum DataKey {
     Admin,
     Token,
-    Escrow(u64),             // bounty_id
+    Escrow(u64), // bounty_id
     Metadata(u64),
     EscrowIndex,             // Vec<u64> of all bounty_ids
     DepositorIndex(Address), // Vec<u64> of bounty_ids by depositor
@@ -1543,7 +1543,7 @@ impl BountyEscrowContract {
                     if skipped < offset {
                         skipped += 1;
                         continue;
-           }
+                    }
                     results.push_back(EscrowWithId { bounty_id, escrow });
                     count += 1;
                 }
@@ -2159,19 +2159,38 @@ impl BountyEscrowContract {
 
         Ok(released_count)
     }
-pub fn update_metadata(env: Env, _admin: Address, bounty_id: u64, repo_id: u64, issue_id: u64, bounty_type: soroban_sdk::String) -> Result<(), Error> {
-        let stored_admin: Address = env.storage().instance().get(&DataKey::Admin).ok_or(Error::NotInitialized)?;
+    pub fn update_metadata(
+        env: Env,
+        _admin: Address,
+        bounty_id: u64,
+        repo_id: u64,
+        issue_id: u64,
+        bounty_type: soroban_sdk::String,
+    ) -> Result<(), Error> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
         stored_admin.require_auth();
-        
-        let metadata = EscrowMetadata { repo_id, issue_id, bounty_type };
-        env.storage().persistent().set(&DataKey::Metadata(bounty_id), &metadata);
+
+        let metadata = EscrowMetadata {
+            repo_id,
+            issue_id,
+            bounty_type,
+        };
+        env.storage()
+            .persistent()
+            .set(&DataKey::Metadata(bounty_id), &metadata);
         Ok(())
     }
 
     pub fn get_metadata(env: Env, bounty_id: u64) -> Result<EscrowMetadata, Error> {
-        env.storage().persistent().get(&DataKey::Metadata(bounty_id)).ok_or(Error::BountyNotFound)
+        env.storage()
+            .persistent()
+            .get(&DataKey::Metadata(bounty_id))
+            .ok_or(Error::BountyNotFound)
     }
-
 }
 
 #[cfg(test)]

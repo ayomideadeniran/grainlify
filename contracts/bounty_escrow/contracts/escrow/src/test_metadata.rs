@@ -1,4 +1,4 @@
-use crate::{BountyEscrowContractClient, BountyEscrowContract};
+use crate::{BountyEscrowContract, BountyEscrowContractClient};
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 #[test]
@@ -11,7 +11,7 @@ fn test_metadata_storage_and_query() {
 
     let admin = Address::generate(&env);
     let token = Address::generate(&env);
-    
+
     // 1. Initialize with your specific init(admin, token)
     client.init(&admin, &token);
 
