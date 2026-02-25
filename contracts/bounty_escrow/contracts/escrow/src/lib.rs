@@ -887,6 +887,9 @@ impl BountyEscrowContract {
                 if claim.claimed {
                     return Err(Error::FundsNotLocked);
                 }
+                if env.ledger().timestamp() > claim.expires_at {
+                    return Err(Error::DeadlineNotPassed);
+                }
                 if claim.recipient != owner.clone() {
                     return Err(Error::Unauthorized);
                 }
@@ -961,6 +964,9 @@ impl BountyEscrowContract {
                     .ok_or(Error::BountyNotFound)?;
                 if claim.claimed {
                     return Err(Error::FundsNotLocked);
+                }
+                if env.ledger().timestamp() > claim.expires_at {
+                    return Err(Error::DeadlineNotPassed);
                 }
                 if claim.recipient != capability.owner {
                     return Err(Error::Unauthorized);
@@ -2023,6 +2029,106 @@ impl BountyEscrowContract {
         Ok(())
     }
 
+    /// Delegated refund path using a capability.
+    /// This can be used for short-lived, bounded delegated refunds without granting admin rights.
+    pub fn refund_with_capability(
+        env: Env,
+        bounty_id: u64,
+        amount: i128,
+        holder: Address,
+        capability_id: u64,
+    ) -> Result<(), Error> {
+        if Self::check_paused(&env, symbol_short!("refund")) {
+            return Err(Error::FundsPaused);
+        }
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+        if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
+            return Err(Error::BountyNotFound);
+        }
+
+        let mut escrow: Escrow = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(bounty_id))
+            .unwrap();
+
+        if escrow.status != EscrowStatus::Locked && escrow.status != EscrowStatus::PartiallyRefunded
+        {
+            return Err(Error::FundsNotLocked);
+        }
+        if amount > escrow.remaining_amount {
+            return Err(Error::InvalidAmount);
+        }
+
+        if env
+            .storage()
+            .persistent()
+            .has(&DataKey::PendingClaim(bounty_id))
+        {
+            let claim: ClaimRecord = env
+                .storage()
+                .persistent()
+                .get(&DataKey::PendingClaim(bounty_id))
+                .unwrap();
+            if !claim.claimed {
+                return Err(Error::ClaimPending);
+            }
+        }
+
+        Self::consume_capability(
+            &env,
+            &holder,
+            capability_id,
+            CapabilityAction::Refund,
+            bounty_id,
+            amount,
+        )?;
+
+        let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        let client = token::Client::new(&env, &token_addr);
+        let now = env.ledger().timestamp();
+        let refund_to = escrow.depositor.clone();
+
+        client.transfer(&env.current_contract_address(), &refund_to, &amount);
+
+        escrow.remaining_amount -= amount;
+        if escrow.remaining_amount == 0 {
+            escrow.status = EscrowStatus::Refunded;
+        } else {
+            escrow.status = EscrowStatus::PartiallyRefunded;
+        }
+
+        escrow.refund_history.push_back(RefundRecord {
+            amount,
+            recipient: refund_to.clone(),
+            timestamp: now,
+            mode: if escrow.status == EscrowStatus::Refunded {
+                RefundMode::Full
+            } else {
+                RefundMode::Partial
+            },
+        });
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Escrow(bounty_id), &escrow);
+
+        emit_funds_refunded(
+            &env,
+            FundsRefunded {
+                version: EVENT_VERSION_V2,
+                bounty_id,
+                amount,
+                refund_to,
+                timestamp: now,
+            },
+        );
+
+        Ok(())
+    }
+
     /// view function to get escrow info
     pub fn get_escrow_info(env: Env, bounty_id: u64) -> Result<Escrow, Error> {
         if !env.storage().persistent().has(&DataKey::Escrow(bounty_id)) {
@@ -2831,6 +2937,8 @@ mod test_auto_refund_permissions;
 mod test_blacklist_and_whitelist;
 #[cfg(test)]
 mod test_bounty_escrow;
+#[cfg(test)]
+mod test_capability_tokens;
 #[cfg(test)]
 mod test_dispute_resolution;
 #[cfg(test)]
