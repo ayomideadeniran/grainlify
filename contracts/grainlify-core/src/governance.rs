@@ -1,5 +1,5 @@
 use soroban_sdk::{
-    // contract, contractimpl, // Currently unused - uncomment when needed
+    contract, contractimpl,
     contracttype,
     symbol_short,
     Address,
