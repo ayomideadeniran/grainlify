@@ -3818,8 +3818,6 @@ impl BountyEscrowContract {
                     deadline: item.deadline,
                 },
             );
-
-            locked_count = locked_count.checked_add(1).unwrap();
         }
 
         // Emit batch event
@@ -3963,8 +3961,6 @@ impl BountyEscrowContract {
                     timestamp,
                 },
             );
-
-            released_count = released_count.checked_add(1).unwrap();
         }
 
         // Emit batch event
