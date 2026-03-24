@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Rust (with Soroban targets)
         uses: dtolnay/rust-toolchain@stable
@@ -31,7 +31,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache Cargo dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -81,7 +81,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Rust (with Soroban targets)
         uses: dtolnay/rust-toolchain@stable
@@ -89,7 +89,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache Cargo dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -102,7 +102,7 @@ jobs:
             ${{ runner.os }}-cargo-registry-
 
       - name: Cache target directory
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: contracts/bounty_escrow/contracts/escrow/target
           key: ${{ runner.os }}-target-bounty-escrow-${{ hashFiles('**/Cargo.lock') }}
@@ -147,7 +147,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Rust (with Soroban targets)
         uses: dtolnay/rust-toolchain@stable
@@ -155,7 +155,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache Cargo dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -168,7 +168,7 @@ jobs:
             ${{ runner.os }}-cargo-registry-
 
       - name: Cache target directory
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: contracts/program-escrow/target
           key: ${{ runner.os }}-target-program-escrow-${{ hashFiles('**/Cargo.lock') }}
@@ -214,7 +214,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Rust (with Soroban targets)
         uses: dtolnay/rust-toolchain@stable
