@@ -749,7 +749,7 @@ impl GrainlifyContract {
         env.storage().instance().set(&DataKey::Version, &VERSION);
 
         // Track successful operation
-        let caller = Address::generate(&env);
+        let caller = env.current_contract_address();
         monitoring::track_operation(&env, symbol_short!("init"), caller.clone(), true);
 
         // Track performance
@@ -850,7 +850,7 @@ impl GrainlifyContract {
     /// use grainlify_core::{GovernanceConfig, VotingScheme};
     ///
     /// let env = Env::default();
-    /// let admin = Address::generate(&env);
+    /// let admin = Address::random(&env);
     ///
     /// let gov_config = GovernanceConfig {
     ///     voting_period: 86400,        // 24 hours
