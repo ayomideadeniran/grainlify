@@ -4923,6 +4923,26 @@ impl traits::EscrowInterface for BountyEscrowContract {
         BountyEscrowContract::release_funds(env.clone(), bounty_id, contributor)
     }
 
+    /// Partial release through the trait interface
+    fn partial_release(
+        env: &Env,
+        bounty_id: u64,
+        contributor: Address,
+        payout_amount: i128,
+    ) -> Result<(), crate::Error> {
+        BountyEscrowContract::partial_release(env.clone(), bounty_id, contributor, payout_amount)
+    }
+
+    /// Batch lock funds through the trait interface
+    fn batch_lock_funds(env: &Env, items: Vec<LockFundsItem>) -> Result<u32, crate::Error> {
+        BountyEscrowContract::batch_lock_funds(env.clone(), items)
+    }
+
+    /// Batch release funds through the trait interface
+    fn batch_release_funds(env: &Env, items: Vec<ReleaseFundsItem>) -> Result<u32, crate::Error> {
+        BountyEscrowContract::batch_release_funds(env.clone(), items)
+    }
+
     /// Refund funds to depositor through the trait interface
     fn refund(env: &Env, bounty_id: u64) -> Result<(), crate::Error> {
         BountyEscrowContract::refund(env.clone(), bounty_id)

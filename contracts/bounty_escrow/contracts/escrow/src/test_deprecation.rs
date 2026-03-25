@@ -82,7 +82,7 @@ fn test_lock_funds_fails_when_deprecated() {
     let amount = 1000i128;
     let deadline = env.ledger().timestamp() + 1000;
 
-    escrow.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None);
+    escrow.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 }
 
 #[test]
@@ -98,7 +98,6 @@ fn test_batch_lock_funds_fails_when_deprecated() {
         depositor: depositor.clone(),
         amount: 500,
         deadline: env.ledger().timestamp() + 1000,
-        non_transferable_rewards: false,
     });
 
     escrow.batch_lock_funds(&items);
@@ -113,7 +112,7 @@ fn test_release_still_works_when_deprecated() {
     let bounty_id = 1u64;
     let amount = 1000i128;
     let deadline = env.ledger().timestamp() + 1000;
-    escrow.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None);
+    escrow.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 
     escrow.set_deprecated(&true, &None);
 
@@ -130,7 +129,7 @@ fn test_refund_still_works_when_deprecated() {
     let bounty_id = 1u64;
     let amount = 1000i128;
     let deadline = 9_999u64; // already passed (now is 10_000)
-    escrow.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None);
+    escrow.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 
     escrow.set_deprecated(&true, &None);
 
@@ -149,7 +148,7 @@ fn test_unset_deprecated_restores_lock() {
     let bounty_id = 1u64;
     let amount = 1000i128;
     let deadline = env.ledger().timestamp() + 1000;
-    escrow.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None);
+    escrow.lock_funds(&depositor, &bounty_id, &amount, &deadline);
     let info = escrow.get_escrow_info(&bounty_id);
     assert_eq!(info.status, EscrowStatus::Locked);
 }

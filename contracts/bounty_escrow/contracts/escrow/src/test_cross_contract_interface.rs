@@ -335,7 +335,7 @@ mod cross_contract_interface_tests {
         let amount = 1000i128;
         let deadline = env.ledger().timestamp() + 3600;
 
-        client.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None);
+        client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 
         let escrow_before = client.get_escrow_info(&bounty_id);
         assert_eq!(escrow_before.remaining_amount, amount);
@@ -379,21 +379,18 @@ mod cross_contract_interface_tests {
                 depositor: depositor.clone(),
                 amount: 1000i128,
                 deadline,
-                non_transferable_rewards: false,
             },
             LockFundsItem {
                 bounty_id: 101,
                 depositor: depositor.clone(),
                 amount: 1000i128,
                 deadline,
-                non_transferable_rewards: false,
             },
             LockFundsItem {
                 bounty_id: 102,
                 depositor: depositor.clone(),
                 amount: 1000i128,
                 deadline,
-                non_transferable_rewards: false,
             },
         ];
 
@@ -434,14 +431,12 @@ mod cross_contract_interface_tests {
                 depositor: depositor.clone(),
                 amount: 1000i128,
                 deadline,
-                non_transferable_rewards: false,
             },
             LockFundsItem {
                 bounty_id: 201,
                 depositor: depositor.clone(),
                 amount: 1000i128,
                 deadline,
-                non_transferable_rewards: false,
             },
         ];
 
@@ -490,7 +485,7 @@ mod cross_contract_interface_tests {
         let amount = 1000i128;
         let deadline = env.ledger().timestamp() + 100;
 
-        client.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None);
+        client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 
         env.ledger().set_timestamp(deadline + 1);
 
@@ -522,7 +517,7 @@ mod cross_contract_interface_tests {
         let amount = 1000i128;
         let deadline = env.ledger().timestamp() + 3600;
 
-        client.lock_funds(&depositor, &bounty_id, &amount, &deadline, &None);
+        client.lock_funds(&depositor, &bounty_id, &amount, &deadline);
 
         let balance = env.as_contract(&contract_id, || {
             <BountyEscrowContract as EscrowInterface>::get_balance(&env).unwrap()
