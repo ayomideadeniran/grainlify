@@ -537,6 +537,8 @@ pub enum Error {
     InvalidSelectionInput = 42,
     /// Returned when an upgrade safety pre-check fails
     UpgradeSafetyCheckFailed = 43,
+    /// Payment/revenue action is not allowed for current event lifecycle state
+    InvalidEventLifecycle = 44,
 }
 
 pub const RISK_FLAG_HIGH_RISK: u32 = 1 << 0;
@@ -647,6 +649,14 @@ pub struct EscrowInfo {
 }
 
 #[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EventStatus {
+    Active,
+    Completed,
+    Cancelled,
+}
+
+#[contracttype]
 pub enum DataKey {
     Admin,
     Token,
@@ -690,6 +700,7 @@ pub enum DataKey {
     NetworkId,
 
     MaintenanceMode, // bool flag
+    EventStatus(u64), // bounty_id -> EventStatus
 }
 
 #[contracttype]
@@ -892,6 +903,68 @@ pub struct BountyEscrowContract;
 
 #[contractimpl]
 impl BountyEscrowContract {
+    fn get_event_status_internal(env: &Env, bounty_id: u64) -> EventStatus {
+        env.storage()
+            .persistent()
+            .get(&DataKey::EventStatus(bounty_id))
+            .unwrap_or(EventStatus::Active)
+    }
+
+    fn set_event_status_internal(env: &Env, bounty_id: u64, status: EventStatus) {
+        env.storage()
+            .persistent()
+            .set(&DataKey::EventStatus(bounty_id), &status);
+    }
+
+    /// Sets lifecycle status for a bounty event (admin only).
+    pub fn set_event_status(env: Env, bounty_id: u64, status: EventStatus) -> Result<(), Error> {
+        if !env.storage().instance().has(&DataKey::Admin) {
+            return Err(Error::NotInitialized);
+        }
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        if !env.storage().persistent().has(&DataKey::Escrow(bounty_id))
+            && !env.storage().persistent().has(&DataKey::EscrowAnon(bounty_id))
+        {
+            return Err(Error::BountyNotFound);
+        }
+        Self::set_event_status_internal(&env, bounty_id, status);
+        Ok(())
+    }
+
+    /// Returns lifecycle status for a bounty event. Defaults to Active.
+    pub fn get_event_status(env: Env, bounty_id: u64) -> EventStatus {
+        Self::get_event_status_internal(&env, bounty_id)
+    }
+
+    /// Payment entrypoint: only allowed for Active events.
+    pub fn pay(
+        env: Env,
+        depositor: Address,
+        bounty_id: u64,
+        amount: i128,
+        deadline: u64,
+    ) -> Result<(), Error> {
+        let status = Self::get_event_status_internal(&env, bounty_id);
+        if status == EventStatus::Completed || status == EventStatus::Cancelled {
+            return Err(Error::InvalidEventLifecycle);
+        }
+        Self::lock_funds(env, depositor, bounty_id, amount, deadline)
+    }
+
+    /// Revenue withdrawal entrypoint: only allowed once event is Completed.
+    pub fn withdraw_revenue(
+        env: Env,
+        bounty_id: u64,
+        contributor: Address,
+    ) -> Result<(), Error> {
+        let status = Self::get_event_status_internal(&env, bounty_id);
+        if status != EventStatus::Completed {
+            return Err(Error::InvalidEventLifecycle);
+        }
+        Self::release_funds(env, bounty_id, contributor)
+    }
+
     pub fn health_check(env: Env) -> monitoring::HealthStatus {
         monitoring::health_check(&env)
     }
@@ -2165,6 +2238,11 @@ impl BountyEscrowContract {
         // INV-2: Verify aggregate balance matches token balance after lock
         multitoken_invariants::assert_after_lock(&env);
 
+        // Default lifecycle state for newly funded events.
+        if !env.storage().persistent().has(&DataKey::EventStatus(bounty_id)) {
+            Self::set_event_status_internal(&env, bounty_id, EventStatus::Active);
+        }
+
         // GUARD: release reentrancy lock
         reentrancy_guard::release(&env);
         Ok(())
@@ -3146,10 +3224,13 @@ impl BountyEscrowContract {
         let approval_key = DataKey::RefundApproval(bounty_id);
         let approval: Option<RefundApproval> = env.storage().persistent().get(&approval_key);
 
+        let event_status = Self::get_event_status_internal(&env, bounty_id);
+
         // Refund is allowed if:
         // 1. Deadline has passed (returns full amount to depositor)
         // 2. An administrative approval exists (can be early, partial, and to custom recipient)
-        if now < escrow.deadline && approval.is_none() {
+        // 3. Event has been cancelled
+        if now < escrow.deadline && approval.is_none() && event_status != EventStatus::Cancelled {
             return Err(Error::DeadlineNotPassed);
         }
 

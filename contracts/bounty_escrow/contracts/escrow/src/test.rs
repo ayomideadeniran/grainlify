@@ -1834,3 +1834,63 @@ fn test_batch_release_funds_to_multiple_contributors() {
     assert_eq!(setup.token.balance(&contributor3), 3000);
     assert_eq!(setup.escrow.get_balance(), 0);
 }
+
+#[test]
+#[should_panic(expected = "Error(Contract, #44)")] // InvalidEventLifecycle
+fn test_pay_rejected_when_event_completed() {
+    let setup = TestSetup::new();
+    let now = setup.env.ledger().timestamp();
+    let deadline = now + 1_000;
+    let bounty_id = 777_u64;
+
+    setup
+        .escrow
+        .pay(&setup.depositor, &bounty_id, &1_000_i128, &deadline);
+    setup
+        .escrow
+        .set_event_status(&bounty_id, &EventStatus::Completed);
+
+    setup
+        .escrow
+        .pay(&setup.depositor, &bounty_id, &500_i128, &deadline);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #44)")] // InvalidEventLifecycle
+fn test_withdraw_revenue_rejected_before_completion() {
+    let setup = TestSetup::new();
+    let now = setup.env.ledger().timestamp();
+    let deadline = now + 1_000;
+    let bounty_id = 778_u64;
+
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &1_000_i128, &deadline);
+
+    setup
+        .escrow
+        .withdraw_revenue(&bounty_id, &setup.contributor);
+}
+
+#[test]
+fn test_refund_succeeds_for_cancelled_event_before_deadline() {
+    let setup = TestSetup::new();
+    let now = setup.env.ledger().timestamp();
+    let deadline = now + 5_000;
+    let bounty_id = 779_u64;
+    let amount = 1_200_i128;
+
+    setup
+        .escrow
+        .lock_funds(&setup.depositor, &bounty_id, &amount, &deadline);
+    setup
+        .escrow
+        .set_event_status(&bounty_id, &EventStatus::Cancelled);
+
+    let depositor_before = setup.token.balance(&setup.depositor);
+    setup.escrow.refund(&bounty_id);
+    let escrow = setup.escrow.get_escrow_info(&bounty_id);
+
+    assert_eq!(escrow.status, EscrowStatus::Refunded);
+    assert_eq!(setup.token.balance(&setup.depositor), depositor_before + amount);
+}
