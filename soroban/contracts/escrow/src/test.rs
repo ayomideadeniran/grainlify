@@ -4,7 +4,7 @@
 
 use super::*;
 use soroban_sdk::testutils::{Address as _, Ledger};
-use soroban_sdk::{testutils::Events, TryFromVal, token, Address, Env, String, Symbol};
+use soroban_sdk::{testutils::Events, token, Address, Env, String, Symbol, TryFromVal};
 
 fn create_token<'a>(
     env: &'a Env,
@@ -51,13 +51,14 @@ fn setup<'a>(
 }
 
 fn has_event_topic(env: &Env, topic_name: &str) -> bool {
-    use soroban_sdk::testutils::Events as _;
-    use soroban_sdk::IntoVal;
-    let expected: soroban_sdk::Val = Symbol::new(env, topic_name).into_val(env);
-    let events = env.events().all();
-    for (_contract, topics, _data) in events.iter() {
-        if topics.len() > 0 && topics.get(0).unwrap().get_payload() == expected.get_payload() {
-            return true;
+    let topic_symbol = Symbol::new(env, topic_name);
+    for event in env.events().all().iter() {
+        for topic in event.1.iter() {
+            if let Ok(symbol) = Symbol::try_from_val(env, &topic) {
+                if symbol == topic_symbol {
+                    return true;
+                }
+            }
         }
     }
     false
@@ -274,7 +275,13 @@ fn test_jurisdiction_events_emitted() {
         max_lock_amount: Some(100_000),
     };
 
-    client.lock_funds_with_jurisdiction(&depositor, &bounty_id, &amount, &deadline, &OptionalJurisdiction::Some(cfg));
+    client.lock_funds_with_jurisdiction(
+        &depositor,
+        &bounty_id,
+        &amount,
+        &deadline,
+        &OptionalJurisdiction::Some(cfg),
+    );
     client.release_funds(&bounty_id, &contributor);
 
     assert!(has_event_topic(&env, "juris"));
